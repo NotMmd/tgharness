@@ -1,0 +1,17 @@
+telegram:
+  api_id: 12345678
+  api_hash: "your_api_hash_here"
+  session_name: "tgharness"
+  workdir: "~/.local/share/tgharness"
+  bot_token: null
+  proxy: null
+  in_memory: false
+  no_updates: false
+  sleep_threshold: 10
+
+harness:
+  ipc_socket: null
+  ipc_timeout: 60
+  collect_limit: 100
+  download_dir: null
+  pretty_json: true

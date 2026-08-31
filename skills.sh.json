@@ -1,0 +1,9 @@
+{
+  "$schema": "https://skills.sh/schemas/skills.sh.schema.json",
+  "groupings": [
+    {
+      "title": "Communication",
+      "skills": ["telegram-harness"]
+    }
+  ]
+}

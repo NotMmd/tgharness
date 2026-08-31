@@ -1,0 +1,49 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "tgharness"
+version = "0.4.1"
+description = "Telegram MTProto harness for AI agents, powered by PyroTGFork."
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "MIT" }
+authors = [
+    { name = "NotMmd", email = "contact@fakeeverything.ir" }
+]
+keywords = [
+    "telegram",
+    "agent-harness",
+    "ai-agent",
+    "mtproto",
+    "pyrotgfork"
+]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Communications :: Chat",
+    "Topic :: Software Development :: Libraries :: Python Modules"
+]
+
+dependencies = [
+    "pyrotgfork>=2.2.24,<3",
+    "tgcrypto>=1.2.5",
+    "pyyaml>=6.0"
+]
+
+[project.urls]
+Homepage = "https://github.com/NotMmd/tgharness"
+Repository = "https://github.com/NotMmd/tgharness.git"
+Issues = "https://github.com/NotMmd/tgharness/issues"
+
+[project.scripts]
+tgharness = "tgharness.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["tgharness*"]

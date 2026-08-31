@@ -1,0 +1,6 @@
+interface:
+  display_name: "Telegram Harness"
+  short_description: "Operate Telegram safely through PyroTGFork"
+  default_prompt: "Use $telegram-harness to install, configure, and operate Telegram through tgharness."
+policy:
+  allow_implicit_invocation: true

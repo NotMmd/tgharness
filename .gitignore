@@ -1,0 +1,13 @@
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+build/
+dist/
+*.session
+*.session-journal
+config.yaml
+downloads/
+.DS_Store
+.pytest_cache/
+.coverage

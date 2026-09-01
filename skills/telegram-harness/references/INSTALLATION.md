@@ -22,6 +22,30 @@ Use `--no-setup` when an agent is performing the package installation and the hu
 curl -fsSL https://raw.githubusercontent.com/NotMmd/tgharness/main/bootstrap.sh | bash -s -- --no-setup
 ```
 
+## Upgrade an existing installation
+
+When an agent is asked to perform the upgrade, it should treat the existing configuration and Telegram sessions as persistent user state: use `--upgrade`, refresh its installed skill copy, avoid re-running authorization, restart a running `tgharness serve`, then verify `tgharness --version` and `tgharness account list`. The README contains a copy/paste upgrade prompt for users.
+
+
+Once the newer repository version is on `main`:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/NotMmd/tgharness/main/bootstrap.sh | bash -s -- --upgrade
+```
+
+Upgrade mode force-reinstalls the current package from the fetched checkout, skips interactive Telegram setup, preserves the user's config and `.session` files, and refreshes detected existing `telegram-harness` skill copies. It also detects Hermes, Codex, and Claude Code runtimes on PATH.
+
+For a pre-0.5 installation, the old single-session config is intentionally accepted as the `default` account. Do not delete or rename the old session as part of an upgrade. Verify with:
+
+```bash
+tgharness --version
+tgharness account list
+```
+
+If `tgharness serve` is already running, restart that long-running process after the package update.
+
+If the skill was installed through an update-aware manager rather than this installer, its native update flow can also be used. Current Skills CLI supports `npx skills update telegram-harness -g -y`; current Hermes skill installs can be checked/updated with `hermes skills check` and `hermes skills update`.
+
 ## Hermes Agent
 
 ```bash
@@ -75,5 +99,5 @@ An agent may install the CLI and Skill, verify binaries, and inspect non-secret 
 Recommended sequence:
 
 ```text
-install package -> install skill -> verify tgharness --version -> ask user to run tgharness setup -> verify tgharness me -> optionally start tgharness serve
+install package -> install skill -> verify tgharness --version -> ask user to run tgharness setup -> inspect tgharness account list -> verify tgharness account info default -> optionally add more accounts -> optionally start tgharness serve
 ```

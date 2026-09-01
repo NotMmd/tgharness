@@ -1,6 +1,6 @@
 # Agent instructions
 
-This repository is `tgharness`, a Telegram Agent Harness built on PyroTGFork. Canonical repository: https://github.com/NotMmd/tgharness.
+This repository is `tgharness`, a multi-account Telegram Agent Harness built on PyroTGFork. Canonical repository: https://github.com/NotMmd/tgharness.
 
 ## Install
 
@@ -24,6 +24,16 @@ If you are Codex:
 
 The reusable Agent Skill is `skills/telegram-harness/SKILL.md` and the repo-local Codex discovery path is `.agents/skills/telegram-harness/`.
 
+## Upgrade
+
+For an existing installation, do not re-run authorization just to update code. After pulling a newer checkout, use:
+
+```bash
+./install.sh --upgrade
+```
+
+From the published repository, use the bootstrap command documented in README. Upgrade mode preserves configuration and Telegram session files, refreshes detected existing skill copies, and skips setup. Restart any long-running `tgharness serve` process afterward.
+
 ## Telegram API rule
 
 Use only the PyroTGFork documentation for library behavior:
@@ -34,18 +44,23 @@ The installed package is `pyrotgfork`; the Python import namespace remains `pyro
 
 ## Credentials
 
-Do not ask the user to paste API hashes, confirmation codes, 2FA passwords, session strings, or session files into chat. Have the user run this locally:
+Do not ask the user to paste API hashes, confirmation codes, 2FA passwords, session strings, or session files into chat. Have the user run authorization locally:
 
 ```bash
 tgharness setup
+tgharness account add NAME --login
+tgharness account login NAME
 ```
 
-Use `tgharness login` if configuration already exists. The interactive wizard displays the Telegram 2FA hint when needed and accepts secret input without echoing it.
+The interactive wizard displays the Telegram 2FA hint when needed and accepts secret input without echoing it.
 
-After authorization, verify with:
+After authorization, inspect accounts with:
 
 ```bash
-tgharness me
+tgharness account list
+tgharness account info NAME
 ```
 
-For repeated work, prefer `tgharness serve` before issuing many agent commands.
+Use `--account NAME`, `--accounts NAME1,NAME2`, or `--all-accounts` deliberately. Do not assume a command should run from every enabled identity.
+
+For repeated work, prefer `tgharness serve` so one process owns all enabled file-backed sessions.

@@ -1,13 +1,74 @@
+# Python
 __pycache__/
 *.py[cod]
-*.egg-info/
+*$py.class
+*.so
+
+# Virtual environments
 .venv/
+venv/
+env/
+ENV/
+
+# Build / packaging
 build/
 dist/
-*.session
-*.session-journal
-config.yaml
-downloads/
-.DS_Store
+*.egg-info/
+.eggs/
+wheels/
+*.whl
+
+# Test / coverage
 .pytest_cache/
 .coverage
+.coverage.*
+htmlcov/
+.tox/
+.nox/
+.mypy_cache/
+.ruff_cache/
+
+# Environment / secrets
+.env
+.env.*
+!.env.example
+
+# tgharness configuration
+config.yaml
+config.local.yaml
+
+# Telegram / PyroTGFork sessions
+*.session
+*.session-journal
+*.session-shm
+*.session-wal
+
+# Runtime
+*.pid
+*.sock
+*.log
+logs/
+tmp/
+.temp/
+
+# Downloaded / temporary media
+downloads/
+media/
+
+# IDEs / editors
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Local agent files
+.claude/settings.local.json
+
+# Misc
+*.bak
+*.tmp

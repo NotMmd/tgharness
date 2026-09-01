@@ -1,6 +1,7 @@
 import asyncio
 import json
 import os
+import inspect
 from pathlib import Path
 from typing import Any, Awaitable, Callable
 
@@ -41,11 +42,22 @@ class HarnessIPCServer:
             if not line:
                 return
             request = json.loads(line.decode("utf-8"))
+            handler_kwargs = {"request_id": request.get("request_id")}
+            try:
+                params = inspect.signature(self.handler).parameters
+                accepts_extra = any(p.kind is inspect.Parameter.VAR_KEYWORD for p in params.values())
+            except (TypeError, ValueError):
+                params = {}
+                accepts_extra = True
+            if accepts_extra or "account_names" in params:
+                handler_kwargs["account_names"] = request.get("account_names") or None
+            if accepts_extra or "all_accounts" in params:
+                handler_kwargs["all_accounts"] = bool(request.get("all_accounts", False))
             response = await self.handler(
                 self.client,
                 request.get("command", ""),
                 request.get("args") or {},
-                request_id=request.get("request_id"),
+                **handler_kwargs,
             )
             writer.write((json.dumps(response, ensure_ascii=False, separators=(",", ":")) + "\n").encode("utf-8"))
             await writer.drain()
@@ -85,7 +97,15 @@ class HarnessIPCServer:
         self._owns_socket = False
 
 
-async def send_ipc_command(command: str, args: dict | None = None, *, timeout: float | None = None, request_id: str | None = None) -> dict:
+async def send_ipc_command(
+    command: str,
+    args: dict | None = None,
+    *,
+    timeout: float | None = None,
+    request_id: str | None = None,
+    account_names: list[str] | None = None,
+    all_accounts: bool = False,
+) -> dict:
     socket_path = config.ipc_socket
     if not socket_path.exists():
         return {"transport_available": False}
@@ -95,6 +115,8 @@ async def send_ipc_command(command: str, args: dict | None = None, *, timeout: f
             "request_id": request_id,
             "command": command,
             "args": args or {},
+            "account_names": account_names,
+            "all_accounts": bool(all_accounts),
         }
         writer.write((json.dumps(payload, ensure_ascii=False, separators=(",", ":")) + "\n").encode("utf-8"))
         await writer.drain()

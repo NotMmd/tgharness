@@ -1,13 +1,26 @@
 telegram:
   api_id: 12345678
   api_hash: "your_api_hash_here"
-  session_name: "tgharness"
   workdir: "~/.local/share/tgharness"
+  default_account: default
+
+  # Global defaults inherited by every account unless overridden per account.
   bot_token: null
   proxy: null
   in_memory: false
   no_updates: false
   sleep_threshold: 10
+
+  accounts:
+    default:
+      session_name: tgharness
+      enabled: true
+
+    # work:
+    #   session_name: work
+    #   enabled: true
+    #   no_updates: false
+    #   proxy: null
 
 harness:
   ipc_socket: null

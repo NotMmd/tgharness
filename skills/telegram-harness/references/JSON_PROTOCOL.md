@@ -181,3 +181,39 @@ Request:
 ```
 
 The server delegates the command to the same gateway used by direct CLI execution, so direct and IPC responses share the same envelope.
+
+## Multi-account requests
+
+IPC requests may additionally carry account routing fields:
+
+```json
+{
+  "request_id":"...",
+  "command":"send",
+  "args":{"chat_id":"@chat","text":"hello"},
+  "account_names":["default","work"],
+  "all_accounts":false
+}
+```
+
+A multi-account result uses one child envelope per selected identity:
+
+```json
+{
+  "ok": true,
+  "data": {
+    "results": [
+      {"account":"default","ok":true,"data":{},"error":null,"meta":{"account":"default"}},
+      {"account":"work","ok":true,"data":{},"error":null,"meta":{"account":"work"}}
+    ]
+  },
+  "error": null,
+  "meta": {
+    "accounts":["default","work"],
+    "success_count":2,
+    "failure_count":0
+  }
+}
+```
+
+The parent `ok` becomes false if any child fails. Keep the child results: they show which identities succeeded and which failed.

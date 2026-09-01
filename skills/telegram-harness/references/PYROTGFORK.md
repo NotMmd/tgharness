@@ -45,3 +45,9 @@ tgharness python '...'
 2. Open the matching PyroTGFork documentation page.
 3. Encode complex arguments with the tagged JSON protocol.
 4. Make the narrowest call possible and inspect the response envelope.
+
+## Multiple clients and sessions
+
+PyroTGFork supports running multiple Client instances at once. Each tgharness account maps to a separate session filename. Do not open the same file-backed session in two Client instances concurrently; for repeated agent work, let `tgharness serve` own the enabled sessions and route commands over IPC.
+
+For account identity/profile inspection, tgharness uses the high-level PyroTGFork methods `get_me()`, `get_chat_photos_count("me")`, `get_chat_photos("me")`, `get_chat("me")` when available, and `download_media()` for explicitly requested local profile-photo downloads.

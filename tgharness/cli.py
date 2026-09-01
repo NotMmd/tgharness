@@ -6,11 +6,11 @@ import uuid
 from typing import Any
 
 from . import __version__
+from .core.accounts import AccountPool
 from .core.auth import login_interactive, setup_interactive
-from .core.client import tg_session
-from .core.config import config
-from .core.gateway import dispatch
+from .core.config import Config, config
 from .core.ipc import HarnessIPCServer, send_ipc_command
+from .core.router import dispatch_request
 from .core.serialization import dumps
 
 
@@ -42,18 +42,29 @@ def _message_ids(value: str) -> int | list[int]:
     return int(stripped)
 
 
+def _account_list(value: str) -> list[str]:
+    items = [item.strip() for item in value.split(",") if item.strip()]
+    if not items:
+        raise argparse.ArgumentTypeError("expected one or more comma-separated account names")
+    return list(dict.fromkeys(items))
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="tgharness",
-        description="Structured Telegram Agent Harness powered by PyroTGFork.",
+        description="Structured multi-account Telegram Agent Harness powered by PyroTGFork.",
     )
-    parser.add_argument("--direct", action="store_true", help="bypass the IPC server and open the session directly")
+    parser.add_argument("--direct", action="store_true", help="bypass the IPC server and open selected session(s) directly")
     parser.add_argument("--compact", action="store_true", help="emit compact JSON")
     parser.add_argument("--request-id", help="request ID to echo in the response envelope")
     parser.add_argument("--version", action="version", version=f"tgharness {__version__}")
+    target = parser.add_mutually_exclusive_group()
+    target.add_argument("--account", help="run the command as one configured tgharness account")
+    target.add_argument("--accounts", type=_account_list, help="run as comma-separated configured accounts")
+    target.add_argument("--all-accounts", action="store_true", help="run as every enabled configured account")
     sub = parser.add_subparsers(dest="command", required=True)
 
-    setup = sub.add_parser("setup", help="configure Telegram credentials and optionally log in")
+    setup = sub.add_parser("setup", help="configure Telegram API credentials and optionally log in the default account")
     setup.add_argument("--api-id", type=int)
     setup.add_argument("--api-hash", help="prefer the interactive prompt or TGHARNESS_API_HASH to avoid shell history")
     setup.add_argument("--session", dest="session_name")
@@ -61,10 +72,49 @@ def build_parser() -> argparse.ArgumentParser:
     setup.add_argument("--no-login", action="store_true")
     setup.add_argument("--phone")
 
-    login = sub.add_parser("login", help="log in to a Telegram user account with code and 2FA hint support")
+    login = sub.add_parser("login", help="log in to a configured Telegram account (legacy shortcut)")
     login.add_argument("--phone")
+    login.add_argument("--account", dest="login_account", help="account name; defaults to the configured default")
 
-    sub.add_parser("serve", help="hold one Telegram session and serve commands over the Unix socket")
+    sub.add_parser("serve", help="hold all enabled account sessions and serve commands over one Unix socket")
+
+    account = sub.add_parser("account", aliases=["accounts"], help="add, inspect, enable, disable, and manage account sessions")
+    account_sub = account.add_subparsers(dest="account_command", required=True)
+    account_sub.add_parser("list", help="list configured accounts and session/runtime state")
+
+    account_add = account_sub.add_parser("add", help="register another Telegram account/session")
+    account_add.add_argument("name")
+    account_add.add_argument("--session", dest="session_name", help="PyroTGFork session file name; defaults to account name")
+    account_add.add_argument("--disabled", action="store_true", help="register it disabled")
+    account_add.add_argument("--default", dest="make_default", action="store_true", help="make it the default account")
+    account_add.add_argument("--login", action="store_true", help="open the interactive Telegram login flow immediately")
+    account_add.add_argument("--phone")
+
+    account_login = account_sub.add_parser("login", help="authorize one registered account interactively")
+    account_login.add_argument("name", nargs="?", help="defaults to the configured default account")
+    account_login.add_argument("--phone")
+
+    for action in ("enable", "disable", "default"):
+        p = account_sub.add_parser(action, help=f"{action} a configured account")
+        p.add_argument("name")
+
+    account_remove = account_sub.add_parser("remove", help="remove an account from tgharness")
+    account_remove.add_argument("name")
+    account_remove.add_argument(
+        "--delete-session",
+        action="store_true",
+        help="also delete that local .session and journal files; does not delete the Telegram account",
+    )
+
+    account_info = account_sub.add_parser("info", help="get live identity/profile details for an account")
+    account_info.add_argument("name", nargs="?", help="defaults to the configured default account")
+    account_info.add_argument("--photos", type=int, default=0, help="include metadata for up to N profile photos")
+    account_info.add_argument("--download-photos", action="store_true", help="download included profile photos for agent vision")
+
+    account_photos = account_sub.add_parser("photos", help="list or download profile photos for an account")
+    account_photos.add_argument("name", nargs="?", help="defaults to the configured default account")
+    account_photos.add_argument("--limit", type=int, default=5)
+    account_photos.add_argument("--download", action="store_true", help="download files and return local paths")
 
     methods = sub.add_parser("methods", help="list public PyroTGFork Client methods")
     methods.add_argument("query", nargs="?", help="optional name filter")
@@ -175,7 +225,16 @@ def _command_args(namespace: argparse.Namespace) -> tuple[str, dict[str, Any]]:
     if command == "exec":
         command = "python"
     raw = vars(namespace).copy()
-    for key in {"command", "direct", "compact", "request_id"}:
+    for key in {
+        "command",
+        "direct",
+        "compact",
+        "request_id",
+        "account",
+        "accounts",
+        "all_accounts",
+        "account_command",
+    }:
         raw.pop(key, None)
     if command == "methods":
         return command, {"query": raw.get("query")}
@@ -194,21 +253,178 @@ def _command_args(namespace: argparse.Namespace) -> tuple[str, dict[str, Any]]:
     return command.replace("-", "_"), raw
 
 
+def _selected_accounts(namespace: argparse.Namespace) -> tuple[list[str] | None, bool]:
+    if namespace.account:
+        return [namespace.account], False
+    if namespace.accounts:
+        return namespace.accounts, False
+    return None, bool(namespace.all_accounts)
+
+
 async def _serve() -> None:
-    async with tg_session() as app:
-        server = HarnessIPCServer(app, dispatch)
-        await server.start()
-        ready = {
-            "ok": True,
-            "data": {"status": "ready", "socket": str(server.socket_path)},
-            "error": None,
-            "meta": {"transport": "ipc-server"},
-        }
-        print(dumps(ready, pretty=config.pretty_json), flush=True)
+    pool = AccountPool(config)
+    startup = await pool.start_enabled()
+    server = HarnessIPCServer(pool, dispatch_request)
+    await server.start()
+    ready = {
+        "ok": True,
+        "data": {
+            "status": "ready",
+            "socket": str(server.socket_path),
+            "accounts": pool.status(),
+            "startup": startup,
+        },
+        "error": None,
+        "meta": {"transport": "ipc-server"},
+    }
+    print(dumps(ready, pretty=config.pretty_json), flush=True)
+    try:
+        await server.serve_forever()
+    finally:
+        await server.stop()
+        await pool.close()
+
+
+async def _dispatch_with_transport(
+    command: str,
+    args: dict[str, Any],
+    *,
+    namespace: argparse.Namespace,
+    account_names: list[str] | None = None,
+    all_accounts: bool = False,
+) -> dict[str, Any]:
+    request_id = namespace.request_id or str(uuid.uuid4())
+    response = None
+    if not namespace.direct:
         try:
-            await server.serve_forever()
+            ipc_response = await send_ipc_command(
+                command,
+                args,
+                request_id=request_id,
+                account_names=account_names,
+                all_accounts=all_accounts,
+            )
+            if ipc_response.get("transport_available", True):
+                response = ipc_response
+        except (ConnectionError, FileNotFoundError, asyncio.TimeoutError, OSError):
+            response = None
+
+    if response is None:
+        direct_cfg = Config()
+        pool = AccountPool(direct_cfg, persistent=False)
+        try:
+            response = await dispatch_request(
+                pool,
+                command,
+                args,
+                request_id=request_id,
+                account_names=account_names,
+                all_accounts=all_accounts,
+            )
+            response.setdefault("meta", {})["transport"] = "direct"
         finally:
-            await server.stop()
+            await pool.close()
+    return response
+
+
+async def _run_account_command(namespace: argparse.Namespace) -> int:
+    action = namespace.account_command
+    if action == "login":
+        active = Config()
+        name = namespace.name or active.default_account
+        await login_interactive(cfg=active, phone=namespace.phone, account=name)
+        return 0
+
+    if action == "add":
+        # When immediate login is requested, keep the new account disabled until authorization is complete.
+        desired_enabled = not namespace.disabled
+        response = await _dispatch_with_transport(
+            "account_add",
+            {
+                "name": namespace.name,
+                "session_name": namespace.session_name,
+                "enabled": False if namespace.login else desired_enabled,
+                "make_default": namespace.make_default and not namespace.login,
+            },
+            namespace=namespace,
+        )
+        if not response.get("ok"):
+            print(dumps(response, pretty=not namespace.compact and config.pretty_json))
+            return 1
+
+        if namespace.login:
+            refreshed = Config()
+            await login_interactive(cfg=refreshed, phone=namespace.phone, account=namespace.name)
+            if desired_enabled:
+                response = await _dispatch_with_transport(
+                    "account_enable",
+                    {"name": namespace.name},
+                    namespace=namespace,
+                )
+            if namespace.make_default and response.get("ok"):
+                response = await _dispatch_with_transport(
+                    "account_default",
+                    {"name": namespace.name},
+                    namespace=namespace,
+                )
+        print(dumps(response, pretty=not namespace.compact and config.pretty_json))
+        return 0 if response.get("ok") else 1
+
+    mapping = {
+        "list": ("account_list", {}),
+        "enable": ("account_enable", {"name": getattr(namespace, "name", None)}),
+        "disable": ("account_disable", {"name": getattr(namespace, "name", None)}),
+        "default": ("account_default", {"name": getattr(namespace, "name", None)}),
+        "remove": (
+            "account_remove",
+            {"name": getattr(namespace, "name", None), "delete_session": getattr(namespace, "delete_session", False)},
+        ),
+        "info": (
+            "account_info",
+            {
+                "name": getattr(namespace, "name", None),
+                "photo_limit": max(
+                    1 if getattr(namespace, "download_photos", False) else 0,
+                    getattr(namespace, "photos", 0),
+                ),
+                "download_photos": getattr(namespace, "download_photos", False),
+            },
+        ),
+        "photos": (
+            "account_photos",
+            {
+                "name": getattr(namespace, "name", None),
+                "limit": max(1, getattr(namespace, "limit", 5)),
+                "download": getattr(namespace, "download", False),
+            },
+        ),
+    }
+    command, args = mapping[action]
+    account_names = None
+    all_accounts = False
+    if action in {"info", "photos"}:
+        account_names, all_accounts = _selected_accounts(namespace)
+        if getattr(namespace, "name", None) and (account_names or all_accounts):
+            response = {
+                "ok": False,
+                "data": None,
+                "error": {
+                    "type": "ValueError",
+                    "message": "Use either an account name or --account/--accounts/--all-accounts, not both",
+                },
+                "meta": {"operation": command},
+            }
+            print(dumps(response, pretty=not namespace.compact and config.pretty_json))
+            return 1
+    response = await _dispatch_with_transport(
+        command,
+        args,
+        namespace=namespace,
+        account_names=account_names,
+        all_accounts=all_accounts,
+    )
+    print(dumps(response, pretty=not namespace.compact and config.pretty_json))
+    return 0 if response.get("ok") else 1
 
 
 async def _run(namespace: argparse.Namespace) -> int:
@@ -220,34 +436,30 @@ async def _run(namespace: argparse.Namespace) -> int:
             workdir=namespace.workdir,
         )
         if not namespace.no_login:
-            await login_interactive(cfg=cfg, phone=namespace.phone)
+            await login_interactive(cfg=cfg, phone=namespace.phone, account=cfg.default_account)
         return 0
 
     if namespace.command == "login":
-        await login_interactive(phone=namespace.phone)
+        chosen = namespace.login_account or namespace.account or Config().default_account
+        await login_interactive(phone=namespace.phone, account=chosen)
         return 0
 
     if namespace.command == "serve":
         await _serve()
         return 0
 
+    if namespace.command in {"account", "accounts"}:
+        return await _run_account_command(namespace)
+
     command, args = _command_args(namespace)
-    request_id = namespace.request_id or str(uuid.uuid4())
-    response = None
-
-    if not namespace.direct:
-        try:
-            ipc_response = await send_ipc_command(command, args, request_id=request_id)
-            if ipc_response.get("transport_available", True):
-                response = ipc_response
-        except (ConnectionError, FileNotFoundError, asyncio.TimeoutError, OSError):
-            response = None
-
-    if response is None:
-        async with tg_session() as app:
-            response = await dispatch(app, command, args, request_id=request_id)
-            response.setdefault("meta", {})["transport"] = "direct"
-
+    selected, all_accounts = _selected_accounts(namespace)
+    response = await _dispatch_with_transport(
+        command,
+        args,
+        namespace=namespace,
+        account_names=selected,
+        all_accounts=all_accounts,
+    )
     print(dumps(response, pretty=not namespace.compact and config.pretty_json))
     return 0 if response.get("ok") else 1
 

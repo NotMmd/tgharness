@@ -1,5 +1,17 @@
 # CLI reference
 
+## Global syntax
+
+Normal commands emit a structured JSON envelope. Global flags must appear before the subcommand:
+
+```text
+tgharness [--direct] [--compact] [--request-id ID]
+          [--account NAME | --accounts A,B | --all-accounts]
+          COMMAND ...
+```
+
+Account targeting applies to Telegram operations. Without a selector, the configured default account is used.
+
 ## Setup and login
 
 These commands are interactive and intentionally do not use the JSON envelope:
@@ -7,18 +19,29 @@ These commands are interactive and intentionally do not use the JSON envelope:
 ```bash
 tgharness setup
 tgharness setup --no-login
-tgharness login
+tgharness login --account NAME
+tgharness account login NAME
 ```
 
-`setup` writes the user config and, unless `--no-login` is given, launches the login flow. `login` reuses existing configuration. Confirmation codes and 2FA passwords are read without terminal echo; when Two-Step Verification is required, the Telegram password hint is displayed before prompting for the password.
+`setup` writes shared Telegram API configuration and creates the initial account registry if needed. Confirmation codes and 2FA passwords are read without terminal echo; when Two-Step Verification is required, Telegram's password hint is displayed before prompting for the password.
 
-Do not pass API hashes, login codes, or 2FA passwords through agent chat or shell arguments.
+Do not pass API hashes, login codes, 2FA passwords, session strings, or session files through agent chat.
 
-All normal commands emit one structured JSON envelope. Global flags must appear before the subcommand.
+## Account/session management
 
-```text
-tgharness [--direct] [--compact] [--request-id ID] COMMAND ...
+```bash
+tgharness account list
+tgharness account add NAME [--session SESSION] [--disabled] [--default] [--login]
+tgharness account login [NAME]
+tgharness account enable NAME
+tgharness account disable NAME
+tgharness account default NAME
+tgharness account remove NAME [--delete-session]
+tgharness account info [NAME] [--photos N] [--download-photos]
+tgharness account photos [NAME] [--limit N] [--download]
 ```
+
+`account remove` keeps the session file by default. `--delete-session` explicitly deletes local session/journal files.
 
 ## Transport
 
@@ -26,9 +49,19 @@ tgharness [--direct] [--compact] [--request-id ID] COMMAND ...
 tgharness serve
 ```
 
-Starts a persistent PyroTGFork session and Unix-domain IPC server. The socket is mode `0600`.
+Starts one Unix-domain IPC server and owns one live PyroTGFork Client per enabled authorized account. The socket is mode `0600`.
 
 `--direct` bypasses IPC. `--compact` removes pretty JSON indentation. `--request-id` supplies an agent correlation ID echoed in `meta.request_id`.
+
+## Account selectors
+
+```bash
+tgharness --account work me
+tgharness --accounts default,work send @chat "hello"
+tgharness --all-accounts dialogs --limit 5
+```
+
+Multi-account operations return `data.results` and batch success/failure counts. Do not treat a partially successful batch as fully successful.
 
 ## Discovery
 
@@ -45,7 +78,7 @@ Use these before unfamiliar calls.
 tgharness call METHOD --params '{...}' [--collect-limit N]
 ```
 
-`METHOD` must be a public callable on the active PyroTGFork Client. Arguments are keyword-only from the JSON object after tagged-value decoding.
+`METHOD` must be a public callable on the selected PyroTGFork Client. Arguments are keyword-only from the JSON object after tagged-value decoding.
 
 Generator results are materialized to arrays. `--collect-limit N` overrides the configured cap. `-1` disables the cap.
 
@@ -64,7 +97,7 @@ tgharness python 'CODE'
 tgharness exec 'CODE'
 ```
 
-`exec` is an alias. Single expressions and a single `await ...` return their result automatically. Multi-line snippets should use an explicit `return` when a value must be serialized.
+`exec` is an alias. Single expressions and a single `await ...` return their result automatically. Multi-line snippets should use an explicit `return` when a value must be serialized. With multiple account selectors, the snippet runs independently against each account's `app`.
 
 ## Convenience commands
 
@@ -79,7 +112,6 @@ tgharness dialogs --limit 20
 
 ```bash
 tgharness history CHAT [--limit N] [--min-id N] [--max-id N] [--reverse] [--scheduled]
-
 tgharness get-messages MESSAGE_IDS [--chat CHAT] [--replies N]
 ```
 
@@ -97,62 +129,33 @@ tgharness send CHAT TEXT [--reply-to MESSAGE_ID] [--silent]
 tgharness send-media TYPE CHAT FILE [--caption TEXT] [--reply-to MESSAGE_ID]
 ```
 
-`TYPE` is one of:
+`TYPE` is one of `photo`, `audio`, `document`, `video`, `animation`, `voice`, `video_note`, or `sticker`. Use `call` for the complete send-method surface and parameters not exposed by this convenience command.
 
-- `photo`
-- `audio`
-- `document`
-- `video`
-- `animation`
-- `voice`
-- `video_note`
-- `sticker`
-
-Use `call` for the complete send-method surface and parameters not exposed by this convenience command.
-
-### Upload generic file
+### Upload / download
 
 ```bash
 tgharness upload @chat ./report.pdf --caption "Report"
-```
-
-Options: `--caption`, `--reply-to`, `--silent`. This maps to `send_document()`. For the full parameter surface, use `call send_document`.
-
-### Download
-
-```bash
 tgharness download CHAT MESSAGE_ID [--file-name PATH]
 ```
 
-The harness first resolves the message, then calls PyroTGFork `download_media`. The configured download directory is used when no path is provided.
-
-### Edit/delete
+### Edit / delete
 
 ```bash
 tgharness edit CHAT MESSAGE_ID TEXT
-
 tgharness delete CHAT MESSAGE_IDS [--local-only] [--scheduled]
 ```
 
-### Forward/copy
+### Forward / copy
 
 ```bash
 tgharness forward TO_CHAT FROM_CHAT MESSAGE_IDS [--silent]
-
 tgharness copy TO_CHAT FROM_CHAT MESSAGE_ID
 ```
 
-### Search
+### Search / chat membership
 
 ```bash
 tgharness search CHAT [QUERY] [--limit N]
-```
-
-For filters, sender constraints, dates, topic IDs, and other PyroTGFork search parameters, use `call search_messages --params ...`.
-
-### Chat lookup/membership
-
-```bash
 tgharness get-chat CHAT
 tgharness join CHAT_OR_INVITE
 tgharness leave CHAT [--delete]

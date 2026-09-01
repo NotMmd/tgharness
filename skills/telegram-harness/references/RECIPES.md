@@ -2,6 +2,34 @@
 
 Use these as patterns, then verify unfamiliar signatures with `describe` and the PyroTGFork docs.
 
+## Inspect available identities
+
+```bash
+tgharness account list
+tgharness account info default
+tgharness account info work
+```
+
+Inspect profile-photo metadata only when needed:
+
+```bash
+tgharness account info work --photos 3
+```
+
+Download photos for local vision:
+
+```bash
+tgharness account photos work --limit 3 --download
+```
+
+## Run one operation from selected accounts
+
+```bash
+tgharness --accounts default,work send @chat "hello"
+```
+
+Inspect every child entry in `data.results`; a batch can partially fail.
+
 ## Resolve a username
 
 ```bash
@@ -12,6 +40,12 @@ For a chat/channel:
 
 ```bash
 tgharness get-chat @username
+```
+
+Run as a specific identity when resolution must be account-specific:
+
+```bash
+tgharness --account work call get_users --params '{"user_ids":"@username"}'
 ```
 
 ## Read latest messages
@@ -104,30 +138,27 @@ For long-running update processing, implement the callback in a real Python modu
 from tgharness.core import tg_session, dispatch
 
 async def task():
-    async with tg_session() as app:
-        result = await dispatch(
+    async with tg_session(account="work") as app:
+        return await dispatch(
             app,
             "call",
-            {
-                "method": "get_users",
-                "params": {"user_ids": ["me"]},
-            },
+            {"method": "get_users", "params": {"user_ids": ["me"]}},
         )
-        return result
 ```
 
-For direct typed PyroTGFork use:
+For routing one command across several registered accounts, use `AccountPool` and `dispatch_request`:
 
 ```python
-from tgharness.core import tg_session
+from tgharness.core import AccountPool, dispatch_request
 
 async def task():
-    async with tg_session() as app:
-        return await app.get_me()
-```
-
-## Upload a generic file
-
-```bash
-tgharness upload @chat ./report.pdf --caption "Report"
+    pool = AccountPool()
+    try:
+        return await dispatch_request(
+            pool,
+            "me",
+            account_names=["default", "work"],
+        )
+    finally:
+        await pool.close()
 ```

@@ -1,8 +1,27 @@
-# tgharness
+<div align="center">
 
-Telegram MTProto harness for AI agents, powered by **PyroTGFork**.
+<img src="assets/banner.jpg" alt="tgharness Banner" width="100%">
 
-`tgharness` gives an agent a stable CLI/JSON interface to one or many Telegram accounts while keeping the full PyroTGFork surface reachable through dynamic Client calls, Raw MTProto, and a Python escape hatch.
+# ⚡ tgharness
+
+### *Telegram MTProto Harness for AI Agents, powered by PyroTGFork*
+
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg?style=flat-square)](LICENSE)
+[![Framework: PyroTGFork](https://img.shields.io/badge/Framework-PyroTGFork-2ca5e0.svg?style=flat-square)](https://telegramplayground.github.io/pyrogram/index.html)
+[![Protocol: Raw MTProto](https://img.shields.io/badge/Protocol-Raw%20MTProto-8b5cf6.svg?style=flat-square)](https://core.telegram.org/mtproto)
+[![Python: 3.10+](https://img.shields.io/badge/Python-3.10%20%7C%203.11%20%7C%203.12-3776ab.svg?style=flat-square)](https://www.python.org)
+[![Interface: CLI & JSON](https://img.shields.io/badge/Interface-CLI%20%7C%20Structured%20JSON-10b981.svg?style=flat-square)](#what-it-gives-an-agent)
+[![Platform: AI Agents](https://img.shields.io/badge/Agents-Hermes%20%7C%20Codex%20%7C%20Claude-f97316.svg?style=flat-square)](#give-this-to-your-agent)
+
+<p align="center">
+  <code>tgharness</code> gives an agent a stable CLI/JSON interface to one or many Telegram accounts while keeping the full PyroTGFork surface reachable through dynamic Client calls, Raw MTProto, and a Python escape hatch.
+</p>
+
+[Features](#what-it-gives-an-agent) • [Give This To Your Agent](#give-this-to-your-agent) • [Install](#install) • [Setup & Login](#setup-and-first-account) • [Multi-Account](#multi-account-sessions) • [Common Operations](#common-telegram-operations) • [JSON Protocol](#json-protocol)
+
+---
+
+</div>
 
 > [!IMPORTANT]
 > This project uses **PyroTGFork**, installed as `pyrotgfork` and imported through the `pyrogram` Python namespace. API behavior and signatures must be checked against the [PyroTGFork documentation](https://telegramplayground.github.io/pyrogram/index.html), not upstream Pyrogram documentation.
